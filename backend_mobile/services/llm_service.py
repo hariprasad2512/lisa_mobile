@@ -1,0 +1,78 @@
+import os
+from groq import Groq
+from ddgs import DDGS
+from dotenv import load_dotenv
+
+load_dotenv()
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+ALLOWED_VOICES = {
+    "en-US-AvaNeural",
+    "en-US-AriaNeural",
+    "en-US-JennyNeural",
+    "en-US-MichelleNeural",
+    "en-US-AnaNeural",
+    "en-IN-NeerjaNeural",
+}
+DEFAULT_VOICE = "en-US-AvaNeural"
+
+
+def search_web(query: str) -> str:
+    try:
+        with DDGS() as ddgs:
+            results = [r["body"] for r in ddgs.text(query, max_results=3)]
+            if results:
+                return " ".join(results)
+    except Exception as e:
+        print(f"Web search error: {e}")
+    return "No live search results found."
+
+
+async def get_llm_response(user_text: str, location: dict = None, history: list = None) -> str:
+    location_context = ""
+    location_keywords = [
+        "location", "where am i", "weather", "temperature", "forecast",
+        "rain", "nearby", "near me", "local", "city", "place", "places",
+        "restaurant", "restaurants", "hotel", "hotels", "traffic", "here",
+    ]
+    if location and location.get("latitude") and location.get("longitude"):
+        if any(k in user_text.lower() for k in location_keywords):
+            location_context = (
+                f"\nUser's Current Coordinates: Latitude {location.get('latitude')}, "
+                f"Longitude {location.get('longitude')}."
+            )
+
+    live_info = ""
+    search_keywords = ["latest", "today", "news", "price", "current", "weather", "who won", "stock"]
+    if any(k in user_text.lower() for k in search_keywords):
+        live_info = f"\nLive Web Search Results for Context: {search_web(user_text)}"
+
+    # Mobile: VERY short spoken answers.
+    system_prompt = (
+        "You are Lisa, a friendly feminine voice assistant for mobile. "
+        "RULE: Keep every answer to 1-2 short sentences, under 40 words, "
+        "unless the user explicitly asks for detail, steps, or a story. "
+        "Sound spoken, direct, no markdown lists unless asked. "
+        "If the user asks to play music or a video (e.g. 'play Shape of You'), "
+        "you MUST respond strictly in valid JSON format: "
+        '{"action": "play_music","query": "<song or video name>","speak": "Playing <song or video name>"} '
+        "You are Indian. Use INR whenever required. "
+        f"{location_context}{live_info}"
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        for msg in history[-15:]:
+            role = msg.role if hasattr(msg, "role") else msg.get("role")
+            content = msg.content if hasattr(msg, "content") else msg.get("content")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_text})
+
+    completion = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=messages,
+        max_tokens=180,
+        temperature=0.6,
+    )
+    return completion.choices[0].message.content

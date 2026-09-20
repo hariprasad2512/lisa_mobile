@@ -1,0 +1,38 @@
+from fastapi import APIRouter
+from pydantic import BaseModel
+from typing import Optional, Dict, List
+from services.llm_service import get_llm_response
+from services.music_service import get_top_youtube_video
+import json
+
+router = APIRouter(tags=["Brain (LLM)"])
+
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    text: str
+    location: Optional[Dict[str, float]] = None
+    history: Optional[List[Message]] = None
+
+
+@router.post("/chat")
+async def chat_with_lisa(request: ChatRequest):
+    response_text = await get_llm_response(request.text, request.location, request.history)
+    try:
+        data = json.loads(response_text)
+        if isinstance(data, dict) and data.get("action") == "play_music":
+            song_query = data.get("query", "")
+            direct_url = get_top_youtube_video(song_query)
+            data["url"] = direct_url
+            if direct_url:
+                data["speak"] = f"Playing {song_query}"
+            else:
+                data["speak"] = f"Sorry, I couldn't find {song_query}."
+            return data
+    except json.JSONDecodeError:
+        pass
+    return {"response": response_text}
