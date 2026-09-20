@@ -1,6 +1,6 @@
 # Lisa Mobile 🎙️
 
-Mobile version of [lisa-v2](../lisa-v2) — a Google-Assistant-style voice assistant
+Mobile version of [lisa-v2](https://lisa-v2.vercel.app/) — a Google-Assistant-style voice assistant
 for Android/iOS, built with Flutter. The `lisa-v2` web project is never modified;
 the app talks to its backend over HTTP.
 
