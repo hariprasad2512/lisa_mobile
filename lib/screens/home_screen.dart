@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/assistant_controller.dart';
-import '../widgets/assistant_sheet.dart';
 import '../widgets/lisa_orb.dart';
 import 'settings_screen.dart';
 
 /// Pixel-faithful port of https://lisa-v2.vercel.app mobile view:
-/// Header / ChatWindow / MicrophoneControls. No FAB, no chips.
+/// sticky Header / ChatWindow / MicrophoneControls footer. No overlays.
 class HomeScreen extends StatefulWidget {
   final AssistantController controller;
   final VoidCallback onToggleTheme;
@@ -24,11 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     widget.controller.addListener(_refresh);
-    // Wake-word opens the floating bottom-sheet overlay.
-    widget.controller.onWakeUi = () async {
-      if (!mounted) return;
-      await showAssistantSheet(context, widget.controller);
-    };
   }
 
   void _refresh() {
@@ -50,12 +43,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     widget.controller.removeListener(_refresh);
-    widget.controller.onWakeUi = null;
     _scroll.dispose();
     super.dispose();
   }
-
-  void _openSheet() => showAssistantSheet(context, widget.controller);
 
   @override
   Widget build(BuildContext context) {
@@ -107,13 +97,12 @@ class _HomeScreenState extends State<HomeScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Lisa',
-                style: GoogleFonts.dancingScript(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w700,
+                style: TextStyle(
+                  fontFamily: 'Playlist',
+                  fontSize: 34,
                   height: 1.0,
-                  color: dark ? Colors.white : Colors.black,
                 ),
               ),
               Row(
@@ -295,12 +284,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---- Mic footer (MicrophoneControls.jsx) ----
+  // ---- Sticky mic footer (MicrophoneControls.jsx), matches screenshots ----
   Widget _micFooter(BuildContext context, AssistantController c, bool dark) {
     final listening = c.state == LisaState.listening;
     final thinking = c.state == LisaState.thinking;
     final speaking = c.state == LisaState.speaking;
-    final busy = listening || thinking || speaking;
+
+    void onMicTap() {
+      if (thinking) return;
+      c.toggleTalk(); // idle -> listen inline; listening/speaking -> stop
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -314,36 +307,49 @@ class _HomeScreenState extends State<HomeScreen> {
         left: 16,
         right: 16,
         top: listening ? 20 : 12,
-        bottom: 12 + MediaQuery.of(context).padding.bottom,
+        bottom: 10 + MediaQuery.of(context).padding.bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            onTap: () {
-              if (thinking) return;
-              if (listening || speaking) {
-                c.toggleTalk();
-              } else {
-                _openSheet();
-              }
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LisaOrb(
-                  listening: listening,
-                  thinking: thinking,
-                  speaking: speaking,
-                  size: listening ? 64 : 48,
-                ),
-                if (listening) ...[
-                  const SizedBox(height: 10),
-                  const ListenBars(),
+          if (!listening && !thinking && !speaking)
+            // Idle (screenshot 1): compact mic + label row.
+            GestureDetector(
+              onTap: onMicTap,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  LisaOrb(size: 48),
+                  SizedBox(width: 10),
+                  Text('Tap to speak', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                 ],
-              ],
+              ),
+            )
+          else
+            // Active: expanding orb without layout swing (fixed-height stage).
+            GestureDetector(
+              onTap: onMicTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 120,
+                    child: Center(
+                      child: LisaOrb(
+                        listening: listening,
+                        thinking: thinking,
+                        speaking: speaking,
+                        size: listening ? 64 : 48,
+                      ),
+                    ),
+                  ),
+                  if (listening) ...[
+                    const SizedBox(height: 4),
+                    const ListenBars(),
+                  ],
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 8),
           Text(
             thinking
@@ -356,16 +362,14 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: thinking
+              color: thinking || speaking
                   ? const Color(0xFF2DD4BF)
                   : listening
                       ? Colors.red.shade400
-                      : speaking
-                          ? const Color(0xFF2DD4BF)
-                          : (dark ? const Color(0xFFD4D4D8) : const Color(0xFF374151)),
+                      : Colors.transparent,
             ),
           ),
-          if (busy)
+          if (listening || thinking || speaking)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Mic orb matching lisa-v2 website MicrophoneControls:
-/// idle = gray circle, listening = red gradient + ping rings + glow,
-/// thinking = teal glow + spinner, speaking = teal gradient.
+/// Mic orb matching lisa-v2 website MicrophoneControls.
+/// Animation controllers run ONLY while listening/thinking/speaking —
+/// idle is a single static frame (no constant swinging).
 class LisaOrb extends StatefulWidget {
   final bool listening;
   final bool thinking;
@@ -13,8 +13,10 @@ class LisaOrb extends StatefulWidget {
     this.listening = false,
     this.thinking = false,
     this.speaking = false,
-    this.size = 96,
+    this.size = 48,
   });
+
+  bool get active => listening || thinking || speaking;
 
   @override
   State<LisaOrb> createState() => _LisaOrbState();
@@ -22,10 +24,23 @@ class LisaOrb extends StatefulWidget {
 
 class _LisaOrbState extends State<LisaOrb> with SingleTickerProviderStateMixin {
   late final AnimationController _c;
+
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000));
+    if (widget.active) _c.repeat();
+  }
+
+  @override
+  void didUpdateWidget(LisaOrb old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !_c.isAnimating) {
+      _c.repeat();
+    } else if (!widget.active && _c.isAnimating) {
+      _c.stop();
+      _c.value = 0;
+    }
   }
 
   @override
@@ -37,53 +52,58 @@ class _LisaOrbState extends State<LisaOrb> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final active = widget.listening || widget.speaking || widget.thinking;
     final s = widget.size;
+    if (!widget.active) {
+      // Idle: static gray circle, teal mic — zero animation.
+      return Container(
+        width: s,
+        height: s,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: dark ? const Color(0xFF1F2937) : const Color(0xFFE5E7EB),
+          border: Border.all(color: dark ? const Color(0xFF374151) : const Color(0xFFD1D5DB)),
+        ),
+        child: Icon(Icons.mic, color: const Color(0xFF2DD4BF), size: s * 0.42),
+      );
+    }
     return AnimatedBuilder(
       animation: _c,
       builder: (_, _) {
-        final pulse = active ? (0.5 + 0.5 * _c.value) : 0.0;
+        // Single slow ping (website animate-ping): scale + fade over 2s.
+        final t = _c.value;
+        final ringScale = 1.0 + t * 0.35;
+        final ringOpacity = (1.0 - t).clamp(0.0, 1.0);
+        final glowPulse = widget.thinking ? (0.5 + 0.5 * (t * 2 % 1)) : 1.0;
         return SizedBox(
-          width: s + 52,
-          height: s + 52,
+          width: s + 56,
+          height: s + 56,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              if (widget.listening) ...[
-                Container(
-                  width: s + 8 + pulse * 10,
-                  height: s + 8 + pulse * 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.red.shade400.withValues(alpha: 0.30)),
+              if (widget.listening)
+                Transform.scale(
+                  scale: ringScale,
+                  child: Container(
+                    width: s + 16,
+                    height: s + 16,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.red.shade400.withValues(alpha: 0.35 * ringOpacity + 0.08),
+                        width: 1.5,
+                      ),
+                    ),
                   ),
                 ),
-                Container(
-                  width: s + 24 + pulse * 14,
-                  height: s + 24 + pulse * 14,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.red.shade400.withValues(alpha: 0.20)),
-                  ),
+              Container(
+                width: s + 40,
+                height: s + 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (widget.listening ? Colors.red.shade500 : const Color(0xFF2DD4BF))
+                      .withValues(alpha: 0.14 * glowPulse + 0.06),
                 ),
-                Container(
-                  width: s + 36,
-                  height: s + 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.red.shade500.withValues(alpha: 0.20),
-                  ),
-                ),
-              ],
-              if (widget.thinking || widget.speaking)
-                Container(
-                  width: s + 36,
-                  height: s + 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF2DD4BF).withValues(alpha: 0.20),
-                  ),
-                ),
+              ),
               Container(
                 width: s,
                 height: s,
@@ -95,28 +115,18 @@ class _LisaOrbState extends State<LisaOrb> with SingleTickerProviderStateMixin {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
-                      : widget.thinking || widget.speaking
-                          ? const LinearGradient(
-                              colors: [Color(0xFF14B8A6), Color(0xFF059669)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : null,
-                  color: (!widget.listening && !widget.thinking && !widget.speaking)
-                      ? (dark ? const Color(0xFF1F2937) : const Color(0xFFE5E7EB))
+                      : const LinearGradient(
+                          colors: [Color(0xFF14B8A6), Color(0xFF059669)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                  border: widget.listening
+                      ? Border.all(color: Colors.red.shade500.withValues(alpha: 0.2), width: 4)
                       : null,
-                  border: (!widget.listening && !widget.thinking && !widget.speaking)
-                      ? Border.all(
-                          color: dark ? const Color(0xFF374151) : const Color(0xFFD1D5DB),
-                        )
-                      : widget.listening
-                          ? Border.all(color: Colors.red.shade500.withValues(alpha: 0.2), width: 4)
-                          : null,
                   boxShadow: [
                     BoxShadow(
-                      color: widget.listening
-                          ? Colors.red.shade500.withValues(alpha: 0.30)
-                          : const Color(0xFF2DD4BF).withValues(alpha: active ? 0.25 : 0.0),
+                      color: (widget.listening ? Colors.red.shade500 : const Color(0xFF2DD4BF))
+                          .withValues(alpha: 0.30),
                       blurRadius: 24,
                       spreadRadius: 2,
                     ),
@@ -127,12 +137,8 @@ class _LisaOrbState extends State<LisaOrb> with SingleTickerProviderStateMixin {
                       ? Icons.hourglass_empty
                       : widget.listening
                           ? Icons.mic_off
-                          : widget.speaking
-                              ? Icons.stop
-                              : Icons.mic,
-                  color: (widget.listening || widget.thinking || widget.speaking)
-                      ? Colors.white
-                      : const Color(0xFF2DD4BF),
+                          : Icons.stop,
+                  color: Colors.white,
                   size: s * 0.42,
                 ),
               ),
@@ -144,7 +150,7 @@ class _LisaOrbState extends State<LisaOrb> with SingleTickerProviderStateMixin {
   }
 }
 
-/// Website 7-bar red wave, shown ONLY while listening in the footer.
+/// Website 7-bar red wave. Mounted ONLY while listening.
 class ListenBars extends StatefulWidget {
   const ListenBars({super.key});
   @override

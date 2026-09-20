@@ -26,11 +26,6 @@ class AssistantController extends ChangeNotifier {
   bool serverReady = false;
   String statusText = 'Hi, how can I help?';
 
-  /// Set by HomeScreen: wake-word opens the floating sheet overlay.
-  /// Falls back to direct recording when no UI is attached yet.
-  Future<void> Function()? onWakeUi;
-  bool sheetOpen = false;
-
   AssistantController({LisaApi? api}) : api = api ?? LisaApi();
 
   Future<void> init() async {
@@ -44,14 +39,10 @@ class AssistantController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// "Hey Lisa" triggers inline footer listening (no overlay anywhere).
   void onWake() {
-    if (state != LisaState.idle || sheetOpen) return;
-    final ui = onWakeUi;
-    if (ui != null) {
-      ui();
-    } else {
-      toggleTalk();
-    }
+    if (state != LisaState.idle) return;
+    toggleTalk();
   }
 
   void _set(LisaState s, [String? text]) {
