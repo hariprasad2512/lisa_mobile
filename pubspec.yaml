@@ -41,7 +41,7 @@ dependencies:
   geolocator: ^13.0.2
   url_launcher: ^6.3.1
   speech_to_text: ^7.0.0
-  avatar_glow: ^3.0.1
+  google_fonts: ^6.2.1
   http_parser: ^4.0.2
 
 dev_dependencies:

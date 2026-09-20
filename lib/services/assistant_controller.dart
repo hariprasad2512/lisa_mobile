@@ -26,6 +26,11 @@ class AssistantController extends ChangeNotifier {
   bool serverReady = false;
   String statusText = 'Hi, how can I help?';
 
+  /// Set by HomeScreen: wake-word opens the floating sheet overlay.
+  /// Falls back to direct recording when no UI is attached yet.
+  Future<void> Function()? onWakeUi;
+  bool sheetOpen = false;
+
   AssistantController({LisaApi? api}) : api = api ?? LisaApi();
 
   Future<void> init() async {
@@ -40,7 +45,11 @@ class AssistantController extends ChangeNotifier {
   }
 
   void onWake() {
-    if (state == LisaState.idle) {
+    if (state != LisaState.idle || sheetOpen) return;
+    final ui = onWakeUi;
+    if (ui != null) {
+      ui();
+    } else {
       toggleTalk();
     }
   }
@@ -51,6 +60,13 @@ class AssistantController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _restartWake() async {
+    // Mic is free again — resume foreground "Hey Lisa" listening.
+    try {
+      await wake.start(() => onWake());
+    } catch (_) {}
+  }
+
   Future<void> toggleTalk() async {
     if (state == LisaState.listening) {
       await _stopAndProcess();
@@ -59,12 +75,15 @@ class AssistantController extends ChangeNotifier {
     } else if (state == LisaState.speaking) {
       await player.stop();
       _set(LisaState.idle, 'Hi, how can I help?');
+      await _restartWake();
     }
   }
 
   Future<void> _startListening() async {
     try {
       await player.stop();
+      // OS mic can't be shared: pause wake-word while recording.
+      await wake.stop();
       final ok = await recorder.hasPermission();
       if (!ok) {
         _set(LisaState.idle, 'Microphone permission needed');
@@ -86,6 +105,7 @@ class AssistantController extends ChangeNotifier {
     } catch (_) {}
     if (path == null) {
       _set(LisaState.idle, 'Hi, how can I help?');
+      await _restartWake();
       return;
     }
     _set(LisaState.thinking, 'Thinking...');
@@ -93,6 +113,7 @@ class AssistantController extends ChangeNotifier {
       final text = await api.transcribe(File(path));
       if (text.isEmpty) {
         _set(LisaState.idle, 'Did not catch that — tap mic to retry');
+        await _restartWake();
         return;
       }
       await ask(text);
@@ -100,6 +121,7 @@ class AssistantController extends ChangeNotifier {
       messages.add(ChatMessage(role: 'assistant', content: 'Connection error. Check backend URL in Settings.'));
       _persist();
       _set(LisaState.idle, 'Connection error');
+      await _restartWake();
     } finally {
       try {
         await File(path).delete();
@@ -130,6 +152,7 @@ class AssistantController extends ChangeNotifier {
         await _speak(speakText);
         await MusicService.play(query, data['url'] as String?);
         _set(LisaState.idle, 'Hi, how can I help?');
+        await _restartWake();
         return;
       }
 
@@ -138,10 +161,12 @@ class AssistantController extends ChangeNotifier {
       _persist();
       await _speak(reply);
       _set(LisaState.idle, 'Hi, how can I help?');
+      await _restartWake();
     } catch (e) {
       messages.add(ChatMessage(role: 'assistant', content: 'Connection error. Please try again.'));
       _persist();
       _set(LisaState.idle, 'Connection error');
+      await _restartWake();
     }
   }
 

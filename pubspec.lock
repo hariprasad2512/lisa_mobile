@@ -57,14 +57,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.4"
-  avatar_glow:
-    dependency: "direct main"
-    description:
-      name: avatar_glow
-      sha256: "848d9a85065e398241d8ffae0dcc50902980c24490aef21fd4c6b6342d4c26b4"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.1"
   boolean_selector:
     dependency: transitive
     description:
@@ -248,6 +240,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.5"
+  google_fonts:
+    dependency: "direct main"
+    description:
+      name: google_fonts
+      sha256: ba03d03bcaa2f6cb7bd920e3b5027181db75ab524f8891c8bc3aa603885b8055
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.3.3"
   gotrue:
     dependency: transitive
     description:

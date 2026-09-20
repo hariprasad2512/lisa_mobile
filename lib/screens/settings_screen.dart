@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
 import '../config.dart';
 import '../models.dart';
 import '../services/api_service.dart';
@@ -16,7 +19,59 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _backend = TextEditingController();
+  final _samplePlayer = AudioPlayer();
   User? _user;
+  String? _playingSample;
+  bool _loadingSample = false;
+
+  static const _sampleText = "Hi, I'm Lisa, your voice assistant. How can I help you today?";
+
+  Future<void> _playSample(String voiceId) async {
+    if (_playingSample == voiceId) {
+      await _samplePlayer.stop();
+      setState(() => _playingSample = null);
+      return;
+    }
+    setState(() {
+      _playingSample = voiceId;
+      _loadingSample = true;
+    });
+    try {
+      await _samplePlayer.stop();
+      final dir = await getTemporaryDirectory();
+      final out = '${dir.path}/lisa_sample_${DateTime.now().millisecondsSinceEpoch}.mp3';
+      final file = await widget.controller.api.speak(
+        _sampleText,
+        voice: voiceId,
+        savePath: out,
+      );
+      setState(() => _loadingSample = false);
+      await _samplePlayer.setFilePath(file.path);
+      await _samplePlayer.play();
+      try {
+        await File(out).delete();
+      } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sample failed — backend may be waking up. Retry.')),
+        );
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _playingSample = null;
+        _loadingSample = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _samplePlayer.dispose();
+    _backend.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -46,6 +101,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           const Text('Voice (female only)', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Tap play to hear a sample. Note: the Render backend ignores the voice '
+            'choice and always speaks as Ava — samples sound identical until the '
+            'new free backend is deployed.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
           const SizedBox(height: 8),
           RadioGroup<String>(
             groupValue: c.voiceId,
@@ -61,6 +122,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: Text(v.label),
                         subtitle: Text(v.id),
                         value: v.id,
+                        secondary: _loadingSample && _playingSample == v.id
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : IconButton(
+                                icon: Icon(
+                                  _playingSample == v.id ? Icons.stop_circle : Icons.play_circle,
+                                ),
+                                onPressed: () => _playSample(v.id),
+                              ),
                       ))
                   .toList(),
             ),
