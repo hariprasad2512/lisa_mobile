@@ -1,30 +1,21 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:lisa_mobile/main.dart';
+import 'package:lisa_mobile/models.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('ChatMessage encode/decode round-trips', () {
+    final items = [
+      ChatMessage(role: 'assistant', content: 'Hi I am Lisa!'),
+      ChatMessage(role: 'user', content: 'Hello'),
+    ];
+    final raw = ChatMessage.encodeList(items);
+    final back = ChatMessage.decodeList(raw);
+    expect(back.length, 2);
+    expect(back.first.content, 'Hi I am Lisa!');
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('Female voice allow-list is curated', () {
+    expect(LisaVoice.all.length, 6);
+    expect(LisaVoice.all.map((e) => e.id), contains('en-US-AvaNeural'));
+    expect(LisaVoice.all.map((e) => e.id), contains('en-IN-NeerjaNeural'));
   });
 }

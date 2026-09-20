@@ -26,6 +26,17 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Lisa needs the microphone for Hey Lisa wake-word and voice chat.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Lisa listens for Hey Lisa and converts speech to text on-device.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Lisa uses location only for weather and nearby answers.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>spotify</string>
+		<string>youtube</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
